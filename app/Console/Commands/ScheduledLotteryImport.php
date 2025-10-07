@@ -13,7 +13,7 @@ class ScheduledLotteryImport extends Command
      *
      * @var string
      */
-    protected $signature = 'lottery:scheduled-import 
+    protected $signature = 'lottery:scheduled-import
                             {--type=latest : Tipo de importação (latest, gap-fill)}
                             {--games=* : Jogos específicos para importar}
                             {--days=7 : Número de dias para trás (gap-fill)}';
@@ -30,9 +30,9 @@ class ScheduledLotteryImport extends Command
      */
     public function handle(LotteryGameService $lotteryService): int
     {
-        $type  = $this->option('type');
+        $type = $this->option('type');
         $games = $this->option('games');
-        $days  = (int) $this->option('days');
+        $days = (int) $this->option('days');
 
         $this->info("🤖 Importação automática iniciada - Tipo: {$type}");
 
@@ -46,18 +46,16 @@ class ScheduledLotteryImport extends Command
 
                 default:
                     $this->error("Tipo de importação inválido: {$type}");
-
                     return Command::FAILURE;
             }
         } catch (\Exception $e) {
             $this->error("Erro durante importação: {$e->getMessage()}");
             Log::error('Erro na importação agendada', [
-                'type'  => $type,
+                'type' => $type,
                 'games' => $games,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-
             return Command::FAILURE;
         }
     }
@@ -73,7 +71,6 @@ class ScheduledLotteryImport extends Command
         } else {
             $this->info('📈 Importando últimos resultados dos jogos: ' . implode(', ', $games));
             $results = [];
-
             foreach ($games as $game) {
                 $results[$game] = $lotteryService->importGame($game);
             }
@@ -108,7 +105,7 @@ class ScheduledLotteryImport extends Command
             // Limitamos para importar apenas se houver poucos concursos
             if (isset($result['total_contests'])) {
                 $lastTen = max(1, $result['total_contests'] - 10);
-                $result  = $lotteryService->importAllContests(
+                $result = $lotteryService->importAllContests(
                     $game,
                     null,
                     $lastTen,
@@ -128,13 +125,13 @@ class ScheduledLotteryImport extends Command
     private function processResults(array $results, string $type): int
     {
         $totalSuccess = 0;
-        $totalFailed  = 0;
-        $hasErrors    = false;
+        $totalFailed = 0;
+        $hasErrors = false;
 
         foreach ($results as $game => $result) {
             if ($result['success'] ?? false) {
                 $imported = $result['imported'] ?? ($result['contest_number'] ? 1 : 0);
-                $skipped  = $result['skipped'] ?? 0;
+                $skipped = $result['skipped'] ?? 0;
 
                 $this->info("✅ {$game}: {$imported} importados" . ($skipped > 0 ? ", {$skipped} já existiam" : ""));
                 $totalSuccess += $imported;
@@ -155,10 +152,10 @@ class ScheduledLotteryImport extends Command
         }
 
         Log::info('Importação agendada concluída', [
-            'type'          => $type,
+            'type' => $type,
             'total_success' => $totalSuccess,
-            'total_failed'  => $totalFailed,
-            'results'       => $results,
+            'total_failed' => $totalFailed,
+            'results' => $results,
         ]);
 
         return $hasErrors ? Command::FAILURE : Command::SUCCESS;
