@@ -22,7 +22,7 @@ it('returns error for invalid game name', function () {
 
     expect($result)->toBeArray()
         ->and($result['success'])->toBeFalse()
-        ->and($result['error'])->toContain("Jogo 'invalidgame' não está disponível na API");
+        ->and($result['error'])->toContain("Jogo 'invalidgame' não está disponível no banco de dados");
 });
 
 it('can create lottery game and contest models', function () {

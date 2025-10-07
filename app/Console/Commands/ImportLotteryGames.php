@@ -45,6 +45,7 @@ class ImportLotteryGames extends Command
 
         } catch (\Exception $e) {
             $this->error('❌ Erro durante a importação: ' . $e->getMessage());
+
             return Command::FAILURE;
         }
     }
@@ -62,6 +63,7 @@ class ImportLotteryGames extends Command
         $this->info('📊 Resultado da importação:');
 
         $successCount = 0;
+
         foreach ($results as $game => $result) {
             if ($result['success']) {
                 $this->line("✅ {$game}: Concurso {$result['contest_number']} com {$result['prizes_count']} prêmios");
@@ -90,10 +92,12 @@ class ImportLotteryGames extends Command
             $this->info("✅ Jogo '{$result['lottery_game']}' importado com sucesso!");
             $this->line("🎲 Concurso: {$result['contest_number']}");
             $this->line("🏆 Prêmios: {$result['prizes_count']}");
+
             return Command::SUCCESS;
         }
 
         $this->error("❌ Falha ao importar o jogo {$game}");
+
         return Command::FAILURE;
     }
 

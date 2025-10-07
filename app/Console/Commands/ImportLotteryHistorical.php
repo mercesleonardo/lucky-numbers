@@ -36,6 +36,7 @@ class ImportLotteryHistorical extends Command
 
         if (!$this->option('force') && !$this->confirm('Tem certeza que deseja continuar?')) {
             $this->info('Operação cancelada pelo usuário.');
+
             return Command::SUCCESS;
         }
 
@@ -56,6 +57,7 @@ class ImportLotteryHistorical extends Command
 
         } catch (\Exception $e) {
             $this->error('❌ Erro durante a importação histórica: ' . $e->getMessage());
+
             return Command::FAILURE;
         }
     }
@@ -68,22 +70,22 @@ class ImportLotteryHistorical extends Command
         $this->info('🎯 Importando histórico de TODOS os jogos...');
 
         $availableGames = $lotteryService->getAvailableGames();
-        $overallStats = [
-            'total_games' => count($availableGames),
+        $overallStats   = [
+            'total_games'      => count($availableGames),
             'successful_games' => 0,
-            'failed_games' => 0,
-            'total_contests' => 0,
-            'total_imported' => 0,
-            'total_failed' => 0
+            'failed_games'     => 0,
+            'total_contests'   => 0,
+            'total_imported'   => 0,
+            'total_failed'     => 0,
         ];
 
         foreach ($availableGames as $game) {
             $this->newLine();
             $this->info("🎲 Processando {$game}...");
 
-            $result = $lotteryService->importAllContests($game, function($current, $total, $result) use ($game) {
+            $result = $lotteryService->importAllContests($game, function ($current, $total, $result) use ($game) {
                 $percentage = round(($current / $total) * 100, 1);
-                $status = $result['success'] ? '✅' : '❌';
+                $status     = $result['success'] ? '✅' : '❌';
                 $this->line("  └─ {$status} Concurso {$current}/{$total} ({$percentage}%)");
             });
 
@@ -116,7 +118,7 @@ class ImportLotteryHistorical extends Command
                 ['Total de concursos', $overallStats['total_contests']],
                 ['Concursos importados', $overallStats['total_imported']],
                 ['Concursos falharam', $overallStats['total_failed']],
-                ['Taxa de sucesso', round(($overallStats['total_imported'] / max($overallStats['total_contests'], 1)) * 100, 2) . '%']
+                ['Taxa de sucesso', round(($overallStats['total_imported'] / max($overallStats['total_contests'], 1)) * 100, 2) . '%'],
             ]
         );
 
@@ -129,7 +131,7 @@ class ImportLotteryHistorical extends Command
     private function importSingleGameHistorical(LotteryGameService $lotteryService, string $game): int
     {
         $from = $this->option('from') ? (int) $this->option('from') : null;
-        $to = $this->option('to') ? (int) $this->option('to') : null;
+        $to   = $this->option('to') ? (int) $this->option('to') : null;
 
         if ($from || $to) {
             $rangeText = "concursos " . ($from ?? 1) . " até " . ($to ?? 'o último');
@@ -140,7 +142,7 @@ class ImportLotteryHistorical extends Command
 
         $progressBar = null;
 
-        $result = $lotteryService->importAllContests($game, function($current, $total, $result) use (&$progressBar) {
+        $result = $lotteryService->importAllContests($game, function ($current, $total, $result) use (&$progressBar) {
             if (!$progressBar) {
                 $progressBar = $this->output->createProgressBar($total);
                 $progressBar->setFormat('  %current%/%max% [%bar%] %percent:3s%% - Concurso %current%');
@@ -183,6 +185,7 @@ class ImportLotteryHistorical extends Command
                 if (!empty($result['errors'])) {
                     $this->newLine();
                     $this->warn('Erros encontrados:');
+
                     foreach (array_slice($result['errors'], 0, 5) as $error) {
                         $this->line("  • {$error}");
                     }
@@ -193,13 +196,14 @@ class ImportLotteryHistorical extends Command
                 }
             }
 
-            $total = isset($result['range_total']) ? $result['range_total'] : $result['total_contests'];
+            $total       = $result['range_total'] ?? $result['total_contests'];
             $successRate = round(($result['imported'] / $total) * 100, 2);
             $this->info("📈 Taxa de sucesso: {$successRate}%");
 
             return $result['failed'] > 0 ? Command::FAILURE : Command::SUCCESS;
         } else {
             $this->error("❌ Falha na importação: " . $result['error']);
+
             return Command::FAILURE;
         }
     }
@@ -212,6 +216,7 @@ class ImportLotteryHistorical extends Command
         $availableGames = $lotteryService->getAvailableGames();
 
         $this->info('🎯 Jogos disponíveis para importação histórica:');
+
         foreach ($availableGames as $index => $game) {
             $this->line("  " . ($index + 1) . ". " . ucfirst($game));
         }

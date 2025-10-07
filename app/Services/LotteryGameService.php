@@ -12,24 +12,27 @@ class LotteryGameService
 {
     private PendingRequest $client;
 
-    private array $availableGames = [
-        'maismilionaria',
-        'megasena',
-        'lotofacil',
-        'quina',
-        'lotomania',
-        'timemania',
-        'duplasena',
-        'federal',
-        'diadesorte',
-        'supersete',
-    ];
-
     public function __construct()
     {
         $this->client = Http::baseUrl('https://loteriascaixa-api.herokuapp.com/api')
             ->timeout(30)
             ->retry(3, 100);
+    }
+
+    /**
+     * Retorna a lista de jogos disponíveis do banco de dados
+     */
+    public function getAvailableGames(): array
+    {
+        return LotteryGame::pluck('slug')->toArray();
+    }
+
+    /**
+     * Valida se um jogo existe no banco de dados
+     */
+    private function validateGameExists(string $gameName): bool
+    {
+        return LotteryGame::where('slug', $gameName)->exists();
     }
 
     /**
@@ -39,7 +42,7 @@ class LotteryGameService
     {
         $results = [];
 
-        foreach ($this->availableGames as $game) {
+        foreach ($this->getAvailableGames() as $game) {
             try {
                 $result         = $this->importGame($game);
                 $results[$game] = $result;
@@ -57,8 +60,8 @@ class LotteryGameService
      */
     public function importGame(string $gameName): array
     {
-        if (!in_array($gameName, $this->availableGames)) {
-            return ['success' => false, 'error' => "Jogo '{$gameName}' não está disponível na API"];
+        if (!$this->validateGameExists($gameName)) {
+            return ['success' => false, 'error' => "Jogo '{$gameName}' não está disponível no banco de dados"];
         }
 
         try {
@@ -96,8 +99,8 @@ class LotteryGameService
      */
     public function importContest(string $gameName, int $contestNumber): array
     {
-        if (!in_array($gameName, $this->availableGames)) {
-            return ['success' => false, 'error' => "Jogo '{$gameName}' não está disponível na API"];
+        if (!$this->validateGameExists($gameName)) {
+            return ['success' => false, 'error' => "Jogo '{$gameName}' não está disponível no banco de dados"];
         }
 
         try {
@@ -122,11 +125,11 @@ class LotteryGameService
 
             if ($existingContest) {
                 return [
-                    'success' => true,
-                    'lottery_game' => ucfirst($gameName),
+                    'success'        => true,
+                    'lottery_game'   => ucfirst($gameName),
                     'contest_number' => $contestNumber,
-                    'prizes_count' => $existingContest->prizes()->count(),
-                    'message' => 'Concurso já existia no banco'
+                    'prizes_count'   => $existingContest->prizes()->count(),
+                    'message'        => 'Concurso já existia no banco',
                 ];
             }
 
@@ -155,8 +158,8 @@ class LotteryGameService
      */
     public function importAllContests(string $gameName, ?\Closure $progressCallback = null, ?int $fromContest = null, ?int $toContest = null): array
     {
-        if (!in_array($gameName, $this->availableGames)) {
-            return ['success' => false, 'error' => "Jogo '{$gameName}' não está disponível na API"];
+        if (!$this->validateGameExists($gameName)) {
+            return ['success' => false, 'error' => "Jogo '{$gameName}' não está disponível no banco de dados"];
         }
 
         try {
@@ -167,16 +170,22 @@ class LotteryGameService
                 return ['success' => false, 'error' => "Falha ao buscar último concurso de {$gameName}"];
             }
 
-            $latestData = $latestResponse->json();
+            $latestData        = $latestResponse->json();
             $lastContestNumber = $latestData['concurso'];
 
             // Define o range de concursos
             $startContest = $fromContest ?? 1;
-            $endContest = $toContest ?? $lastContestNumber;
+            $endContest   = $toContest ?? $lastContestNumber;
 
             // Valida o range
-            if ($startContest < 1) $startContest = 1;
-            if ($endContest > $lastContestNumber) $endContest = $lastContestNumber;
+            if ($startContest < 1) {
+                $startContest = 1;
+            }
+
+            if ($endContest > $lastContestNumber) {
+                $endContest = $lastContestNumber;
+            }
+
             if ($startContest > $endContest) {
                 return ['success' => false, 'error' => "Concurso inicial ({$startContest}) não pode ser maior que o final ({$endContest})"];
             }
@@ -184,16 +193,16 @@ class LotteryGameService
             $totalToImport = $endContest - $startContest + 1;
 
             $results = [
-                'success' => true,
-                'lottery_game' => ucfirst($gameName),
+                'success'        => true,
+                'lottery_game'   => ucfirst($gameName),
                 'total_contests' => $lastContestNumber,
-                'range_start' => $startContest,
-                'range_end' => $endContest,
-                'range_total' => $totalToImport,
-                'imported' => 0,
-                'failed' => 0,
-                'skipped' => 0,
-                'errors' => []
+                'range_start'    => $startContest,
+                'range_end'      => $endContest,
+                'range_total'    => $totalToImport,
+                'imported'       => 0,
+                'failed'         => 0,
+                'skipped'        => 0,
+                'errors'         => [],
             ];
 
             // Importa todos os concursos no range especificado
@@ -245,9 +254,9 @@ class LotteryGameService
     {
         $results = [];
 
-        foreach ($this->availableGames as $game) {
+        foreach ($this->getAvailableGames() as $game) {
             try {
-                $result = $this->importAllContests($game, $progressCallback);
+                $result         = $this->importAllContests($game, $progressCallback);
                 $results[$game] = $result;
             } catch (\Exception $e) {
                 Log::error("Erro ao importar todos os concursos do jogo {$game}: " . $e->getMessage());
@@ -341,13 +350,5 @@ class LotteryGameService
         }
 
         return $prizes;
-    }
-
-    /**
-     * Retorna a lista de jogos disponíveis
-     */
-    public function getAvailableGames(): array
-    {
-        return $this->availableGames;
     }
 }
