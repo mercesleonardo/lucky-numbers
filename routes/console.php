@@ -16,6 +16,8 @@ Schedule::command('lottery:scheduled-import --type=latest')
     ->description('Importa os últimos resultados de todas as loterias')
     ->when(fn () => config('lottery.scheduling.email_on_failure'))
     ->emailOutputOnFailure(config('lottery.scheduling.admin_email'))
+    ->when(fn () => config('lottery.scheduling.email_on_success'))
+    ->emailOutputTo(config('lottery.scheduling.admin_email'))
     ->runInBackground();
 
 // Preenche lacunas semanalmente
@@ -25,6 +27,10 @@ Schedule::command('lottery:scheduled-import --type=gap-fill --days=' . config('l
     ->at(config('lottery.scheduling.weekly_gap_fill_time'))
     ->name('weekly-gap-fill')
     ->description('Preenche lacunas dos últimos dias')
+    ->when(fn () => config('lottery.scheduling.email_on_failure'))
+    ->emailOutputOnFailure(config('lottery.scheduling.admin_email'))
+    ->when(fn () => config('lottery.scheduling.email_on_success'))
+    ->emailOutputTo(config('lottery.scheduling.admin_email'))
     ->runInBackground();
 
 // Importação específica para jogos populares
@@ -36,4 +42,8 @@ Schedule::command("lottery:scheduled-import --type=latest {$popularGames}")
     ->dailyAt(config('lottery.scheduling.midday_popular_time'))
     ->name('popular-games-midday')
     ->description('Importa jogos populares ao meio-dia')
+    ->when(fn () => config('lottery.scheduling.email_on_failure'))
+    ->emailOutputOnFailure(config('lottery.scheduling.admin_email'))
+    ->when(fn () => config('lottery.scheduling.email_on_success'))
+    ->emailOutputTo(config('lottery.scheduling.admin_email'))
     ->runInBackground();

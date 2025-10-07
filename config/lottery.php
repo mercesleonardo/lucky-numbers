@@ -45,6 +45,7 @@ return [
         |--------------------------------------------------------------------------
         */
         'email_on_failure' => env('LOTTERY_EMAIL_ON_FAILURE', true),
+        'email_on_success' => env('LOTTERY_EMAIL_ON_SUCCESS', false),
         'admin_email'      => env('LOTTERY_ADMIN_EMAIL', env('MAIL_FROM_ADDRESS')),
     ],
 
