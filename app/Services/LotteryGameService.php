@@ -14,9 +14,9 @@ class LotteryGameService
 
     public function __construct()
     {
-        $this->client = Http::baseUrl('https://loteriascaixa-api.herokuapp.com/api')
-            ->timeout(30)
-            ->retry(3, 100);
+        $this->client = Http::baseUrl(config('lottery.api.base_url'))
+            ->timeout(config('lottery.api.timeout'))
+            ->retry(config('lottery.api.retry_attempts'), config('lottery.api.retry_delay'));
     }
 
     /**
@@ -228,7 +228,7 @@ class LotteryGameService
                     }
 
                     // Pequena pausa para não sobrecarregar a API
-                    usleep(100000); // 0.1 segundos
+                    usleep(config('lottery.performance.request_delay'));
 
                 } catch (\Exception $e) {
                     $results['failed']++;
