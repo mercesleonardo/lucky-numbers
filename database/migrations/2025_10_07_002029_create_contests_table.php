@@ -13,7 +13,7 @@ return new class () extends Migration {
         Schema::create('contests', function (Blueprint $table) {
             $table->id();
             $table->foreignId('lottery_game_id')->constrained('lottery_games')->onDelete('cascade');
-            $table->unsignedInteger('draw_number')->unique(); // Número do concurso
+            $table->unsignedInteger('draw_number'); // Número do concurso
             $table->date('draw_date'); // Data do sorteio
             $table->string('location')->nullable(); // Local do sorteio
             $table->json('numbers'); // Números sorteados em formato JSON
@@ -23,6 +23,9 @@ return new class () extends Migration {
             $table->decimal('estimated_prize_next_draw', 12, 2)->nullable(); // Valor estimado do prêmio do próximo concurso
             $table->json('extra_data')->nullable(); // Dados extras específicos do jogo
             $table->timestamps();
+
+            // Constraint única composta: cada jogo pode ter um draw_number específico
+            $table->unique(['lottery_game_id', 'draw_number'], 'contests_lottery_game_draw_unique');
         });
     }
 
