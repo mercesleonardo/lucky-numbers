@@ -62,10 +62,13 @@ class TestLotteryEmail extends Command
     {
         $subject = '✅ Lucky Numbers - Importação Concluída com Sucesso';
 
+        $agora             = now();
+        $proximaImportacao = $agora->addDay();
+
         $message = "
 🎉 **Importação de Loterias Concluída!**
 
-**Data/Hora:** " . now()->format('d/m/Y H:i:s') . "
+**Data/Hora:** {$agora->format('d/m/Y H:i:s')}
 **Tipo:** Importação de teste
 **Status:** ✅ SUCESSO
 
@@ -74,12 +77,11 @@ class TestLotteryEmail extends Command
 • ✅ Lotofácil: 1 concurso importado  
 • ✅ Federal: 1 concurso importado
 
-**Próxima importação:** " . now()->addDay()->format('d/m/Y às H:i') . "
+**Próxima importação:** {$proximaImportacao->format('d/m/Y')} às {$proximaImportacao->format('H:i')}
 
 ---
 *Lucky Numbers Bot - Sistema Automatizado*
         ";
-
         Mail::raw($message, function ($mail) use ($email, $subject) {
             $mail->to($email)
                  ->subject($subject)
@@ -91,10 +93,13 @@ class TestLotteryEmail extends Command
     {
         $subject = '❌ Lucky Numbers - Falha na Importação';
 
+        $agora            = now();
+        $proximaTentativa = $agora->addHour();
+
         $message = "
 🚨 **ATENÇÃO: Falha na Importação de Loterias**
 
-**Data/Hora:** " . now()->format('d/m/Y H:i:s') . "
+**Data/Hora:** {$agora->format('d/m/Y H:i:s')}
 **Tipo:** Importação de teste
 **Status:** ❌ FALHA
 
@@ -111,12 +116,11 @@ API da Caixa indisponível - Timeout após 30 segundos
 2. Verificar status da API: https://loteriascaixa-api.herokuapp.com/api
 3. Tentar importação manual: php artisan lottery:import
 
-**Próxima tentativa:** " . now()->addHour()->format('d/m/Y às H:i') . "
+**Próxima tentativa:** {$proximaTentativa->format('d/m/Y')} às {$proximaTentativa->format('H:i')}
 
 ---
 *Lucky Numbers Bot - Sistema Automatizado*
         ";
-
         Mail::raw($message, function ($mail) use ($email, $subject) {
             $mail->to($email)
                  ->subject($subject)
