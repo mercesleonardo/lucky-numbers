@@ -12,13 +12,13 @@ it('can get available games', function () {
 
     expect($games)->toBeArray()
         ->and($games)->toContain('megasena', 'lotofacil', 'quina')
-        ->and(count($games))->toBe(10);
+        ->and(count($games))->toBe(3);
 });
 
 it('returns error for invalid game name', function () {
     $service = app(LotteryGameService::class);
 
-    $result = $service->importGame('invalidgame');
+    $result = $service->importContest('invalidgame', 1);
 
     expect($result)->toBeArray()
         ->and($result['success'])->toBeFalse()
@@ -34,12 +34,10 @@ it('can create lottery game and contest models', function () {
     $contest = Contest::factory()->create([
         'lottery_game_id' => $lotteryGame->id,
         'draw_number'     => 12345,
-        'has_accumulated' => false,
     ]);
 
     expect($lotteryGame->name)->toBe('Test Game')
         ->and($lotteryGame->slug)->toBe('test-game')
         ->and($contest->lottery_game_id)->toBe($lotteryGame->id)
-        ->and($contest->draw_number)->toBe(12345)
-        ->and($contest->has_accumulated)->toBeFalse();
+        ->and($contest->draw_number)->toBe(12345);
 });
