@@ -19,11 +19,6 @@ class Contest extends Model
         'draw_date',
         'location',
         'numbers',
-        'has_accumulated',
-        'next_draw_number',
-        'next_draw_date',
-        'estimated_prize_next_draw',
-        'extra_data',
     ];
 
     /**
@@ -32,14 +27,10 @@ class Contest extends Model
     protected function casts(): array
     {
         return [
-            'draw_date'                 => 'date',
-            'numbers'                   => 'array',
-            'has_accumulated'           => 'boolean',
-            'next_draw_date'            => 'date',
-            'estimated_prize_next_draw' => 'decimal:2',
-            'extra_data'                => 'array',
-            'created_at'                => 'datetime',
-            'updated_at'                => 'datetime',
+            'draw_date'  => 'date',
+            'numbers'    => 'array',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
         ];
     }
 
