@@ -26,8 +26,6 @@ class LotteryGameFactory extends Factory
             'megasena'  => 'Megasena',
             'lotofacil' => 'Lotofácil',
             'quina'     => 'Quina',
-            'timemania' => 'Timemania',
-            'lotomania' => 'Lotomania',
         ];
 
         $slug = $this->faker->randomKey($games);
