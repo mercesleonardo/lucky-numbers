@@ -24,7 +24,6 @@ class Prize extends Model
     protected function casts(): array
     {
         return [
-            'tier'         => 'integer',
             'winners'      => 'integer',
             'prize_amount' => 'decimal:2',
             'created_at'   => 'datetime',
