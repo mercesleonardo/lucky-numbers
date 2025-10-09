@@ -2,10 +2,11 @@
 
 namespace App\Services;
 
+use App\Jobs\ImportContestJob;
 use App\Models\{Contest, LotteryGame, Prize};
 use Carbon\Carbon;
 use Illuminate\Http\Client\PendingRequest;
-use Illuminate\Support\Facades\{Http, Log};
+use Illuminate\Support\Facades\{Cache, DB, Http};
 use Illuminate\Support\Str;
 
 class LotteryGameService
@@ -20,7 +21,7 @@ class LotteryGameService
     }
 
     /**
-     * Retorna a lista de jogos disponíveis do banco de dados
+     * Retorna a lista de jogos disponíveis (fixos)
      */
     public function getAvailableGames(): array
     {
@@ -28,70 +29,15 @@ class LotteryGameService
     }
 
     /**
-     * Valida se um jogo existe no banco de dados
+     * Valida se um jogo existe no banco de dados (com cache)
      */
     private function validateGameExists(string $gameName): bool
     {
-        return LotteryGame::where('slug', $gameName)->exists();
-    }
+        $cacheKey = "lottery_game_exists_{$gameName}";
 
-    /**
-     * Importa todos os jogos disponíveis da API
-     */
-    public function importAllGames(): array
-    {
-        $results = [];
-
-        foreach ($this->getAvailableGames() as $game) {
-            try {
-                $result         = $this->importGame($game);
-                $results[$game] = $result;
-            } catch (\Exception $e) {
-                Log::error("Erro ao importar jogo {$game}: " . $e->getMessage());
-                $results[$game] = ['success' => false, 'error' => $e->getMessage()];
-            }
-        }
-
-        return $results;
-    }
-
-    /**
-     * Importa um jogo específico da API (apenas o último resultado)
-     */
-    public function importGame(string $gameName): array
-    {
-        if (!$this->validateGameExists($gameName)) {
-            return ['success' => false, 'error' => "Jogo '{$gameName}' não está disponível no banco de dados"];
-        }
-
-        try {
-            // Busca o último resultado do jogo
-            $response = $this->client->get("/{$gameName}/latest");
-
-            if (!$response->successful()) {
-                return ['success' => false, 'error' => "Falha ao buscar dados da API para {$gameName}"];
-            }
-
-            $data = $response->json();
-
-            // Cria ou atualiza o jogo
-            $lotteryGame = $this->createOrUpdateLotteryGame($data);
-
-            // Cria ou atualiza o concurso
-            $contest = $this->createOrUpdateContest($lotteryGame, $data);
-
-            // Cria os prêmios
-            $prizes = $this->createPrizes($contest, $data['premiacoes'] ?? []);
-
-            return [
-                'success'        => true,
-                'lottery_game'   => $lotteryGame->name,
-                'contest_number' => $contest->draw_number,
-                'prizes_count'   => count($prizes),
-            ];
-        } catch (\Exception $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
-        }
+        return Cache::remember($cacheKey, config('lottery.performance.cache_ttl'), function () use ($gameName) {
+            return LotteryGame::where('slug', $gameName)->exists();
+        });
     }
 
     /**
@@ -136,11 +82,18 @@ class LotteryGameService
             // Cria ou atualiza o jogo
             $lotteryGame = $this->createOrUpdateLotteryGame($data);
 
-            // Cria ou atualiza o concurso
-            $contest = $this->createOrUpdateContest($lotteryGame, $data);
+            // Usa transação para operações relacionadas
+            $prizes = DB::transaction(function () use ($lotteryGame, $data) {
+                // Cria ou atualiza o concurso
+                $contest = $this->createOrUpdateContest($lotteryGame, $data);
 
-            // Cria os prêmios
-            $prizes = $this->createPrizes($contest, $data['premiacoes'] ?? []);
+                // Cria os prêmios
+                $prizes = $this->createPrizes($contest, $data['premiacoes'] ?? []);
+
+                return [$contest, $prizes];
+            });
+
+            [$contest, $prizes] = $prizes;
 
             return [
                 'success'        => true,
@@ -154,7 +107,7 @@ class LotteryGameService
     }
 
     /**
-     * Importa todos os concursos históricos de um jogo específico
+     * Importa todos os concursos de um jogo específico (otimizado)
      */
     public function importAllContests(string $gameName, ?\Closure $progressCallback = null, ?int $fromContest = null, ?int $toContest = null): array
     {
@@ -192,6 +145,14 @@ class LotteryGameService
 
             $totalToImport = $endContest - $startContest + 1;
 
+            // OTIMIZAÇÃO: Verifica concursos existentes em lote
+            $existingContests = Contest::whereHas('lotteryGame', function ($query) use ($gameName) {
+                $query->where('slug', Str::slug($gameName));
+            })
+            ->whereBetween('draw_number', [$startContest, $endContest])
+            ->pluck('draw_number')
+            ->toArray();
+
             $results = [
                 'success'        => true,
                 'lottery_game'   => ucfirst($gameName),
@@ -201,22 +162,29 @@ class LotteryGameService
                 'range_total'    => $totalToImport,
                 'imported'       => 0,
                 'failed'         => 0,
-                'skipped'        => 0,
+                'skipped'        => count($existingContests),
                 'errors'         => [],
             ];
 
-            // Importa todos os concursos no range especificado
+            // Importa apenas os concursos que não existem
             for ($contestNumber = $startContest; $contestNumber <= $endContest; $contestNumber++) {
                 try {
+                    // OTIMIZAÇÃO: Pula concursos que já existem
+                    if (in_array($contestNumber, $existingContests)) {
+                        if ($progressCallback) {
+                            $progressCallback($contestNumber, $endContest, [
+                                'success' => true,
+                                'message' => 'Concurso já existia no banco',
+                            ]);
+                        }
+
+                        continue;
+                    }
+
                     $result = $this->importContest($gameName, $contestNumber);
 
                     if ($result['success']) {
                         $results['imported']++;
-
-                        // Se já existia, conta como 'skipped'
-                        if (isset($result['message']) && str_contains($result['message'], 'já existia')) {
-                            $results['skipped']++;
-                        }
                     } else {
                         $results['failed']++;
                         $results['errors'][] = "Concurso {$contestNumber}: " . $result['error'];
@@ -248,26 +216,6 @@ class LotteryGameService
     }
 
     /**
-     * Importa todos os concursos históricos de todos os jogos disponíveis
-     */
-    public function importAllGamesAllContests(?\Closure $progressCallback = null): array
-    {
-        $results = [];
-
-        foreach ($this->getAvailableGames() as $game) {
-            try {
-                $result         = $this->importAllContests($game, $progressCallback);
-                $results[$game] = $result;
-            } catch (\Exception $e) {
-                Log::error("Erro ao importar todos os concursos do jogo {$game}: " . $e->getMessage());
-                $results[$game] = ['success' => false, 'error' => $e->getMessage()];
-            }
-        }
-
-        return $results;
-    }
-
-    /**
      * Cria ou atualiza um jogo de loteria
      */
     private function createOrUpdateLotteryGame(array $data): LotteryGame
@@ -286,16 +234,7 @@ class LotteryGameService
      */
     private function createOrUpdateContest(LotteryGame $lotteryGame, array $data): Contest
     {
-        $drawDate     = Carbon::createFromFormat('d/m/Y', $data['data']);
-        $nextDrawDate = null;
-
-        if (isset($data['dataProximoConcurso'])) {
-            try {
-                $nextDrawDate = Carbon::createFromFormat('d/m/Y', $data['dataProximoConcurso']);
-            } catch (\Exception $e) {
-                Log::warning("Data do próximo concurso inválida: " . $data['dataProximoConcurso']);
-            }
-        }
+        $drawDate = Carbon::createFromFormat('d/m/Y', $data['data']);
 
         return Contest::updateOrCreate(
             [
@@ -303,52 +242,135 @@ class LotteryGameService
                 'draw_number'     => $data['concurso'],
             ],
             [
-                'draw_date'                 => $drawDate,
-                'location'                  => $data['local'] ?? null,
-                'numbers'                   => $data['dezenas'] ?? [],
-                'has_accumulated'           => $data['acumulou'] ?? false,
-                'next_draw_number'          => $data['proximoConcurso'] ?? null,
-                'next_draw_date'            => $nextDrawDate,
-                'estimated_prize_next_draw' => $data['valorEstimadoProximoConcurso'] ?? null,
-                'extra_data'                => [
-                    'dezenasOrdemSorteio'            => $data['dezenasOrdemSorteio'] ?? [],
-                    'trevos'                         => $data['trevos'] ?? [],
-                    'timeCoracao'                    => $data['timeCoracao'] ?? null,
-                    'mesSorte'                       => $data['mesSorte'] ?? null,
-                    'valorArrecadado'                => $data['valorArrecadado'] ?? null,
-                    'valorAcumuladoConcurso_0_5'     => $data['valorAcumuladoConcurso_0_5'] ?? null,
-                    'valorAcumuladoConcursoEspecial' => $data['valorAcumuladoConcursoEspecial'] ?? null,
-                    'valorAcumuladoProximoConcurso'  => $data['valorAcumuladoProximoConcurso'] ?? null,
-                    'observacao'                     => $data['observacao'] ?? null,
-                    'estadosPremiados'               => $data['estadosPremiados'] ?? [],
-                    'localGanhadores'                => $data['localGanhadores'] ?? [],
-                ],
+                'draw_date' => $drawDate,
+                'location'  => $data['local'] ?? null,
+                'numbers'   => $data['dezenas'] ?? [],
             ]
         );
     }
 
     /**
-     * Cria os prêmios do concurso
+     * Cria os prêmios do concurso usando batch insert
      */
     private function createPrizes(Contest $contest, array $premiacoes): array
     {
         // Remove prêmios existentes para evitar duplicatas
-        Prize::where('contest_id', $contest->id)->delete();
+        $contest->prizes()->delete();
 
-        $prizes = [];
-
-        foreach ($premiacoes as $premiacao) {
-            $prize = Prize::create([
-                'contest_id'   => $contest->id,
-                'description'  => $premiacao['descricao'],
-                'tier'         => $premiacao['faixa'],
-                'winners'      => $premiacao['ganhadores'],
-                'prize_amount' => $premiacao['valorPremio'],
-            ]);
-
-            $prizes[] = $prize;
+        if (empty($premiacoes)) {
+            return [];
         }
 
-        return $prizes;
+        // Prepara dados para batch insert
+        $prizesData = [];
+        $now        = now();
+
+        foreach ($premiacoes as $index => $premiacao) {
+            $prizesData[] = [
+                'contest_id'   => $contest->id,
+                'tier'         => $index + 1,
+                'description'  => $premiacao['descricao'] ?? ($index + 1) . ' acertos',
+                'winners'      => $premiacao['ganhadores'],
+                'prize_amount' => $premiacao['valorPremio'],
+                'created_at'   => $now,
+                'updated_at'   => $now,
+            ];
+        }
+
+        // Batch insert - muito mais rápido que múltiplos inserts
+        Prize::insert($prizesData);
+
+        // Retorna os prêmios criados para compatibilidade
+        return $contest->prizes()->get()->toArray();
+    }
+
+    /**
+     * Importa concursos usando Jobs para processamento paralelo
+     */
+    public function importContestsParallel(string $gameName, array $contestNumbers): string
+    {
+        if (!$this->validateGameExists($gameName)) {
+            throw new \InvalidArgumentException("Jogo '{$gameName}' não está disponível no banco de dados");
+        }
+
+        $jobId = uniqid('parallel_import_', true);
+
+        // Dispara jobs para cada concurso
+        foreach ($contestNumbers as $contestNumber) {
+            ImportContestJob::dispatch($gameName, $contestNumber, $jobId)
+                ->onQueue('lottery-import');
+        }
+
+        return $jobId;
+    }
+
+    /**
+     * Versão otimizada para importar apenas concursos faltantes
+     */
+    public function importMissingContests(string $gameName, ?int $fromContest = null, ?int $toContest = null): array
+    {
+        if (!$this->validateGameExists($gameName)) {
+            return ['success' => false, 'error' => "Jogo '{$gameName}' não está disponível no banco de dados"];
+        }
+
+        try {
+            // Busca o último concurso
+            $latestResponse = $this->client->get("/{$gameName}/latest");
+
+            if (!$latestResponse->successful()) {
+                return ['success' => false, 'error' => "Falha ao buscar último concurso de {$gameName}"];
+            }
+
+            $latestData        = $latestResponse->json();
+            $lastContestNumber = $latestData['concurso'];
+
+            $startContest = $fromContest ?? 1;
+            $endContest   = $toContest ?? $lastContestNumber;
+
+            // Busca concursos que já existem
+            $existingContests = Contest::whereHas('lotteryGame', function ($query) use ($gameName) {
+                $query->where('slug', Str::slug($gameName));
+            })
+            ->whereBetween('draw_number', [$startContest, $endContest])
+            ->pluck('draw_number')
+            ->toArray();
+
+            // Lista de concursos faltantes
+            $missingContests = [];
+
+            for ($i = $startContest; $i <= $endContest; $i++) {
+                if (!in_array($i, $existingContests)) {
+                    $missingContests[] = $i;
+                }
+            }
+
+            if (empty($missingContests)) {
+                return [
+                    'success'        => true,
+                    'message'        => 'Todos os concursos já existem no banco',
+                    'missing_count'  => 0,
+                    'existing_count' => count($existingContests),
+                ];
+            }
+
+            // Usar processamento paralelo se houver muitos concursos
+            if (count($missingContests) > 10 && config('lottery.performance.background_processing')) {
+                $jobId = $this->importContestsParallel($gameName, $missingContests);
+
+                return [
+                    'success'        => true,
+                    'message'        => 'Importação iniciada em background',
+                    'job_id'         => $jobId,
+                    'missing_count'  => count($missingContests),
+                    'existing_count' => count($existingContests),
+                ];
+            }
+
+            // Importação sequencial para poucos concursos
+            return $this->importAllContests($gameName, null, $startContest, $endContest);
+
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
     }
 }
