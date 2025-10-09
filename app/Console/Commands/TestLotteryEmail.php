@@ -74,7 +74,7 @@ class TestLotteryEmail extends Command
 
 **Resumo:**
 • ✅ Mega-Sena: 1 concurso importado
-• ✅ Lotofácil: 1 concurso importado  
+• ✅ Lotofácil: 1 concurso importado
 • ✅ Federal: 1 concurso importado
 
 **Próxima importação:** {$proximaImportacao->format('d/m/Y')} às {$proximaImportacao->format('H:i')}
