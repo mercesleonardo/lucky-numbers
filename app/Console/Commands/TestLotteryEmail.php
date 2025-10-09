@@ -75,7 +75,6 @@ class TestLotteryEmail extends Command
 **Resumo:**
 • ✅ Mega-Sena: 1 concurso importado
 • ✅ Lotofácil: 1 concurso importado
-• ✅ Federal: 1 concurso importado
 
 **Próxima importação:** {$proximaImportacao->format('d/m/Y')} às {$proximaImportacao->format('H:i')}
 
@@ -108,8 +107,7 @@ API da Caixa indisponível - Timeout após 30 segundos
 
 **Resumo:**
 • ❌ Mega-Sena: Falha na conexão
-• ❌ Lotofácil: Falha na conexão
-• ✅ Federal: 1 concurso importado
+• ✅ Lotofácil: 1 concurso importado
 
 **Ação Necessária:**
 1. Verificar conectividade com a internet
