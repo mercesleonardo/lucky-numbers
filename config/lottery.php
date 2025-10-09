@@ -67,7 +67,7 @@ return [
     |--------------------------------------------------------------------------
     */
     'performance' => [
-        'request_delay'         => env('LOTTERY_REQUEST_DELAY', 100000), // microseconds
+        'request_delay'         => env('LOTTERY_REQUEST_DELAY', 25000), // microseconds (25ms)
         'background_processing' => env('LOTTERY_BACKGROUND_PROCESSING', true),
         'cache_available_games' => env('LOTTERY_CACHE_GAMES', true),
         'cache_ttl'             => env('LOTTERY_CACHE_TTL', 3600), // seconds
