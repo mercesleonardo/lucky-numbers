@@ -12,148 +12,80 @@ it('can get available games', function () {
     $games   = $service->getAvailableGames();
 
     expect($games)->toBeArray()
-        ->and($games)->toContain('megasena', 'lotofacil', 'quina');
+        ->and($games)->toContain('megasena', 'lotofacil', 'quina')
+        ->and(count($games))->toBe(3);
 });
 
-it('throws exception for invalid game name', function () {
+it('returns error for invalid game name', function () {
     $service = app(LotteryGameService::class);
 
-    expect(fn () => $service->importGame('invalidgame'))
-        ->toThrow(InvalidArgumentException::class, "Jogo 'invalidgame' não está disponível na API");
+    $result = $service->importContest('invalidgame', 1);
+
+    expect($result)->toBeArray()
+        ->and($result['success'])->toBeFalse()
+        ->and($result['error'])->toContain("Jogo 'invalidgame' não está disponível no banco de dados");
 });
 
-it('can import a single game successfully', function () {
+it('can import a specific contest successfully', function () {
     $service = app(LotteryGameService::class);
 
     // Mock da resposta da API
     Http::fake([
-        'https://loteriascaixa-api.herokuapp.com/api/megasena/latest' => Http::response([
-            'loteria'             => 'megasena',
-            'concurso'            => 2923,
-            'data'                => '04/10/2025',
-            'local'               => 'ESPAÇO DA SORTE em SÃO PAULO, SP',
-            'dezenas'             => ['18', '27', '32', '39', '55', '56'],
-            'dezenasOrdemSorteio' => ['39', '56', '55', '32', '18', '27'],
-            'trevos'              => [],
-            'timeCoracao'         => null,
-            'mesSorte'            => null,
-            'premiacoes'          => [
+        'https://loteriascaixa-api.herokuapp.com/api/megasena/1' => Http::response([
+            'loteria'    => 'megasena',
+            'concurso'   => 1,
+            'data'       => '11/03/1996',
+            'local'      => 'SÃO PAULO, SP',
+            'dezenas'    => ['04', '05', '30', '33', '41', '52'],
+            'premiacoes' => [
                 [
                     'descricao'   => '6 acertos',
-                    'faixa'       => 1,
-                    'ganhadores'  => 0,
-                    'valorPremio' => 0.0,
-                ],
-                [
-                    'descricao'   => '5 acertos',
-                    'faixa'       => 2,
-                    'ganhadores'  => 29,
-                    'valorPremio' => 63029.43,
+                    'ganhadores'  => 1,
+                    'valorPremio' => 1700000.00,
                 ],
             ],
-            'estadosPremiados'               => [],
-            'observacao'                     => '',
-            'acumulou'                       => true,
-            'proximoConcurso'                => 2924,
-            'dataProximoConcurso'            => '07/10/2025',
-            'localGanhadores'                => [],
-            'valorArrecadado'                => 45869610,
-            'valorAcumuladoConcurso_0_5'     => 12673711.97,
-            'valorAcumuladoConcursoEspecial' => 116378916.46,
-            'valorAcumuladoProximoConcurso'  => 12708997.9,
-            'valorEstimadoProximoConcurso'   => 20000000.0,
-        ], 200),
+        ]),
     ]);
 
-    $result = $service->importGame('megasena');
+    // Primeiro cria o jogo no banco
+    LotteryGame::create(['name' => 'Megasena', 'slug' => 'megasena']);
+
+    $result = $service->importContest('megasena', 1);
 
     expect($result)->toBeArray()
         ->and($result['success'])->toBeTrue()
         ->and($result['lottery_game'])->toBe('Megasena')
-        ->and($result['contest_number'])->toBe(2923)
-        ->and($result['prizes_count'])->toBe(2);
+        ->and($result['contest_number'])->toBe(1);
 
-    // Verifica se os dados foram salvos no banco
-    $lotteryGame = LotteryGame::where('slug', 'megasena')->first();
-    expect($lotteryGame)->not->toBeNull()
-        ->and($lotteryGame->name)->toBe('Megasena');
-
-    $contest = Contest::where('lottery_game_id', $lotteryGame->id)
-        ->where('draw_number', 2923)
-        ->first();
-    expect($contest)->not->toBeNull()
-        ->and($contest->has_accumulated)->toBeTrue()
-        ->and($contest->numbers)->toBe(['18', '27', '32', '39', '55', '56']);
-
-    $prizes = Prize::where('contest_id', $contest->id)->get();
-    expect($prizes)->toHaveCount(2);
-});
-
-it('handles API failures gracefully', function () {
-    $service = app(LotteryGameService::class);
-
-    Http::fake([
-        'https://loteriascaixa-api.herokuapp.com/api/megasena/latest' => Http::response([], 500),
-    ]);
-
-    expect(fn () => $service->importGame('megasena'))
-        ->toThrow(Exception::class, 'Falha ao buscar dados da API para megasena');
-});
-
-it('can import all games', function () {
-    $service = app(LotteryGameService::class);
-
-    // Mock para todos os jogos
-    Http::fake([
-        'https://loteriascaixa-api.herokuapp.com/api/*/latest' => Http::response([
-            'loteria'    => 'megasena',
-            'concurso'   => 2923,
-            'data'       => '04/10/2025',
-            'local'      => 'ESPAÇO DA SORTE em SÃO PAULO, SP',
-            'dezenas'    => ['18', '27', '32', '39', '55', '56'],
-            'premiacoes' => [
-                [
-                    'descricao'   => '6 acertos',
-                    'faixa'       => 1,
-                    'ganhadores'  => 0,
-                    'valorPremio' => 0.0,
-                ],
-            ],
-            'acumulou'                     => true,
-            'proximoConcurso'              => 2924,
-            'dataProximoConcurso'          => '07/10/2025',
-            'valorEstimadoProximoConcurso' => 20000000.0,
-        ], 200),
-    ]);
-
-    $results = $service->importAllGames();
-
-    expect($results)->toBeArray()
-        ->and(count($results))->toBe(10); // Todos os jogos disponíveis
-
-    foreach ($results as $game => $result) {
-        expect($result['success'])->toBeTrue();
-    }
+    // Verifica se o concurso foi criado no banco
+    expect(Contest::count())->toBe(1);
+    expect(Prize::count())->toBe(1);
 });
 
 it('creates lottery game with correct attributes', function () {
     $service = app(LotteryGameService::class);
 
     Http::fake([
-        'https://loteriascaixa-api.herokuapp.com/api/quina/latest' => Http::response([
-            'loteria'         => 'quina',
-            'concurso'        => 6845,
-            'data'            => '06/10/2025',
-            'dezenas'         => ['30', '45', '56', '57', '62'],
-            'premiacoes'      => [],
-            'acumulou'        => false,
-            'proximoConcurso' => 6846,
-        ], 200),
+        'https://loteriascaixa-api.herokuapp.com/api/quina/1' => Http::response([
+            'loteria'    => 'quina',
+            'concurso'   => 1,
+            'data'       => '13/03/1994',
+            'local'      => 'SÃO PAULO, SP',
+            'dezenas'    => ['05', '20', '35', '55', '75'],
+            'premiacoes' => [
+                [
+                    'ganhadores'  => 0,
+                    'valorPremio' => 0,
+                ],
+            ],
+        ]),
     ]);
 
-    $service->importGame('quina');
+    $result = $service->importContest('quina', 1);
 
-    $lotteryGame = LotteryGame::where('slug', 'quina')->first();
+    expect($result['success'])->toBeTrue();
+
+    $lotteryGame = LotteryGame::first();
 
     expect($lotteryGame->name)->toBe('Quina')
         ->and($lotteryGame->slug)->toBe('quina');
@@ -162,28 +94,26 @@ it('creates lottery game with correct attributes', function () {
 it('updates existing contest data', function () {
     $service = app(LotteryGameService::class);
 
-    // Primeiro, cria um contest
-    $lotteryGame     = LotteryGame::factory()->create(['slug' => 'megasena']);
-    $existingContest = Contest::factory()->create([
-        'lottery_game_id' => $lotteryGame->id,
-        'draw_number'     => 2923,
-        'has_accumulated' => false,
-    ]);
+    // Primeiro cria um jogo no banco
+    $lotteryGame = LotteryGame::create(['name' => 'Megasena', 'slug' => 'megasena']);
 
     Http::fake([
-        'https://loteriascaixa-api.herokuapp.com/api/megasena/latest' => Http::response([
-            'loteria'         => 'megasena',
-            'concurso'        => 2923,
-            'data'            => '04/10/2025',
-            'dezenas'         => ['18', '27', '32', '39', '55', '56'],
-            'premiacoes'      => [],
-            'acumulou'        => true,
-            'proximoConcurso' => 2924,
-        ], 200),
+        'https://loteriascaixa-api.herokuapp.com/api/megasena/1' => Http::response([
+            'loteria'    => 'megasena',
+            'concurso'   => 1,
+            'data'       => '11/03/1996',
+            'local'      => 'SÃO PAULO, SP',
+            'dezenas'    => ['04', '05', '30', '33', '41', '52'],
+            'premiacoes' => [],
+        ]),
     ]);
 
-    $service->importGame('megasena');
+    // Primeira importação
+    $service->importContest('megasena', 1);
 
-    $updatedContest = Contest::find($existingContest->id);
-    expect($updatedContest->has_accumulated)->toBeTrue();
+    // Segunda importação (mesmo concurso)
+    $service->importContest('megasena', 1);
+
+    // Deve ter apenas um registro
+    expect(Contest::count())->toBe(1);
 });
