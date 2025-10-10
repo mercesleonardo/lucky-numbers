@@ -2,10 +2,10 @@
 
 namespace App\Services;
 
-use InvalidArgumentException;
+use App\Models\{Contest, LotteryGame};
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
-use App\Models\{Contest, LotteryGame};
+use InvalidArgumentException;
 
 class LotteryGameGeneratorService
 {
