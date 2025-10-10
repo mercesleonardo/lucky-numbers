@@ -56,7 +56,10 @@ LOTTERY_ADMIN_EMAIL=admin@exemplo.com    # Email do administrador
 ```env
 LOTTERY_API_TIMEOUT=30                   # Timeout das requisições (segundos)
 LOTTERY_API_RETRY_ATTEMPTS=3             # Tentativas de retry
-LOTTERY_REQUEST_DELAY=100000             # Delay entre requisições (microsegundos)
+LOTTERY_REQUEST_DELAY=25000              # Delay entre requisições (microsegundos)
+LOTTERY_BACKGROUND_PROCESSING=true       # Processamento paralelo automático
+LOTTERY_CACHE_GAMES=true                 # Cache de jogos disponíveis
+LOTTERY_CACHE_TTL=3600                   # TTL do cache (segundos)
 ```
 
 ## 📊 Agendamentos Configurados
@@ -75,6 +78,11 @@ LOTTERY_REQUEST_DELAY=100000             # Delay entre requisições (microsegun
 - **Comando**: `lottery:scheduled-import --type=latest --games=megasena --games=lotofacil --games=quina`
 - **Frequência**: Diariamente
 - **Função**: Importação focada nos jogos mais populares
+
+### **4. Importação Geral Completa (22:00)** 🆕
+- **Comando**: `lottery:import --all --force`
+- **Frequência**: Diariamente
+- **Função**: Importação geral completa de todos os jogos com processamento paralelo automático
 
 ## 🚀 Comandos Manuais
 
@@ -95,15 +103,19 @@ php artisan lottery:scheduled-import --type=gap-fill --games=megasena --days=3
 
 ### **Comandos Avançados**
 ```bash
-# Importação histórica completa (manual)
-php artisan lottery:import-historical megasena --from=1 --to=100 --force
+# Importação completa otimizada (comando simplificado)
+php artisan lottery:import --all --force
 
-# Importação dos últimos resultados (comando original)
-php artisan lottery:import
+# Importação de jogo específico  
+php artisan lottery:import megasena
 
-# Listar jogos disponíveis
+# Importação com processamento paralelo automático (>10 concursos)
+php artisan lottery:import lotofacil
+
+# Listar jogos disponíveis (apenas 3 suportados)
 php artisan tinker
 >>> app(\App\Services\LotteryGameService::class)->getAvailableGames()
+// Retorna: ['megasena', 'lotofacil', 'quina']
 ```
 
 ## 📈 Monitoramento
