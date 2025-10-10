@@ -24,11 +24,11 @@ class JsonResponseMiddleware
         // Adiciona headers específicos para frontend
         if ($response instanceof JsonResponse) {
             $response->headers->set('Content-Type', 'application/json; charset=utf-8');
-            
+
             // Headers para debugging frontend
             $response->headers->set('X-API-Version', '1.0');
             $response->headers->set('X-Lottery-System', 'Lucky Numbers');
-            
+
             // Cache headers para endpoints específicos
             if ($request->is('api/games/info')) {
                 $response->headers->set('Cache-Control', 'public, max-age=3600'); // 1 hora
