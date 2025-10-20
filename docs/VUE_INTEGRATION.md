@@ -10,10 +10,6 @@ npm install axios
 # Instalar Tailwind CSS
 npm install -D tailwindcss postcss autoprefixer
 npx tailwindcss init -p
-
-# Instalar Flowbite para Vue
-npm install flowbite
-npm install flowbite-vue
 ```
 
 ### 2. Configuração do Tailwind CSS (tailwind.config.js)
@@ -23,8 +19,6 @@ export default {
   content: [
     "./index.html",
     "./src/**/*.{vue,js,ts,jsx,tsx}",
-    "./node_modules/flowbite/**/*.js",
-    "./node_modules/flowbite-vue/**/*.{js,jsx,ts,tsx,vue}"
   ],
   theme: {
     extend: {
@@ -39,9 +33,7 @@ export default {
       }
     },
   },
-  plugins: [
-    require('flowbite/plugin')
-  ],
+  plugins: [],
 }
 ```
 
@@ -85,8 +77,8 @@ export default {
 }
 ```
 
-### 4. Configuração do Main.js com Flowbite
-```javascript
+### 4. Configuração do Main.ts
+```typescript
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import router from './router'
@@ -96,9 +88,6 @@ import App from './App.vue'
 // Importar CSS do Tailwind
 import './style.css'
 
-// Importar Flowbite
-import 'flowbite'
-
 const app = createApp(App)
 
 app.use(createPinia())
@@ -107,8 +96,8 @@ app.use(router)
 app.mount('#app')
 ```
 
-### 5. Configuração do Axios (src/services/api.js)
-```javascript
+### 5. Configuração do Axios (src/services/api.ts)
+```typescript
 import axios from 'axios'
 
 // Configuração base da API
@@ -133,9 +122,15 @@ api.interceptors.response.use(
 export default api
 ```
 
-### 6. Serviços da API (src/services/lotteryService.js)
-```javascript
+### 6. Serviços da API (src/services/lotteryService.ts)
+```typescript
 import api from './api'
+
+// Interfaces para tipagem
+interface GameOptions {
+  quantity?: number;
+  excludeNumbers?: number[];
+}
 
 export const lotteryService = {
   // Obter últimos concursos
@@ -145,19 +140,19 @@ export const lotteryService = {
   },
 
   // Obter último concurso de um jogo específico
-  async getLatestContest(gameSlug) {
+  async getLatestContest(gameSlug: string) {
     const response = await api.get(`/contests/latest/${gameSlug}`)
     return response.data
   },
 
   // Verificar se concurso existe
-  async contestExists(gameSlug, drawNumber) {
+  async contestExists(gameSlug: string, drawNumber: number) {
     const response = await api.get(`/contests/exists/${gameSlug}/${drawNumber}`)
     return response.data
   },
 
   // Verificar números do usuário
-  async checkNumbers(gameSlug, numbers) {
+  async checkNumbers(gameSlug: string, numbers: number[]) {
     const response = await api.post(`/contests/check-numbers/${gameSlug}`, {
       numbers
     })
@@ -177,7 +172,7 @@ export const lotteryService = {
   },
 
   // Gerar jogos inteligentes
-  async generateGames(gameSlug, options = {}) {
+  async generateGames(gameSlug: string, options: GameOptions = {}) {
     const { quantity = 1, excludeNumbers = [] } = options
     const response = await api.post(`/games/generate/${gameSlug}`, {
       quantity,
@@ -188,20 +183,41 @@ export const lotteryService = {
 }
 ```
 
-### 7. Composable Vue 3 (src/composables/useLottery.js)
-```javascript
+### 7. Composable Vue 3 (src/composables/useLottery.ts)
+```typescript
 import { ref, reactive } from 'vue'
 import { lotteryService } from '@/services/lotteryService'
 
+// Definição de tipos
+interface Contest {
+  // Adicione aqui a estrutura de um concurso
+}
+
+interface SessionStats {
+  generated_today: number;
+  remaining: number;
+}
+
+interface GamesInfo {
+  // Adicione aqui a estrutura das informações dos jogos
+}
+
+interface GeneratedGames {
+  megasena: number[][];
+  lotofacil: number[][];
+  quina: number[][];
+  [key: string]: number[][];
+}
+
 export function useLottery() {
-  const loading = ref(false)
-  const error = ref(null)
-  const contests = ref([])
-  const sessionStats = ref(null)
-  const gamesInfo = ref(null)
+  const loading = ref<boolean>(false)
+  const error = ref<string | null>(null)
+  const contests = ref<Contest[]>([])
+  const sessionStats = ref<SessionStats | null>(null)
+  const gamesInfo = ref<GamesInfo | null>(null)
 
   // Estado reativo para jogos gerados
-  const generatedGames = reactive({
+  const generatedGames = reactive<GeneratedGames>({
     megasena: [],
     lotofacil: [],
     quina: []
@@ -213,7 +229,7 @@ export function useLottery() {
     error.value = null
     try {
       contests.value = await lotteryService.getLatestContests()
-    } catch (err) {
+    } catch (err: any) {
       error.value = err.message
     } finally {
       loading.value = false
@@ -221,7 +237,7 @@ export function useLottery() {
   }
 
   // Gerar jogos
-  const generateGames = async (gameSlug, options) => {
+  const generateGames = async (gameSlug: string, options: { quantity: number; excludeNumbers: number[] }) => {
     loading.value = true
     error.value = null
     try {
@@ -229,7 +245,7 @@ export function useLottery() {
       generatedGames[gameSlug] = result.games
       sessionStats.value = result.session_stats
       return result
-    } catch (err) {
+    } catch (err: any) {
       error.value = err.message
       throw err
     } finally {
@@ -238,12 +254,12 @@ export function useLottery() {
   }
 
   // Verificar números
-  const checkUserNumbers = async (gameSlug, numbers) => {
+  const checkUserNumbers = async (gameSlug: string, numbers: number[]) => {
     loading.value = true
     error.value = null
     try {
       return await lotteryService.checkNumbers(gameSlug, numbers)
-    } catch (err) {
+    } catch (err: any) {
       error.value = err.message
       throw err
     } finally {
@@ -255,7 +271,7 @@ export function useLottery() {
   const loadGamesInfo = async () => {
     try {
       gamesInfo.value = await lotteryService.getGamesInfo()
-    } catch (err) {
+    } catch (err: any) {
       error.value = err.message
     }
   }
@@ -275,243 +291,27 @@ export function useLottery() {
 }
 ```
 
-### 8. Componente com Flowbite Vue (src/components/LotteryGenerator.vue)
+### 8. Exemplo de Componente Vue (src/components/LotteryGenerator.vue)
 ```vue
 <template>
-  <div class="max-w-4xl mx-auto p-6">
-    <!-- Header -->
-    <div class="text-center mb-8">
-      <h1 class="text-3xl font-bold text-gray-900 mb-2">🎰 Gerador de Jogos da Loteria</h1>
-      <p class="text-gray-600">Gere jogos inteligentes para Mega-Sena, Lotofácil e Quina</p>
+  <div class="lottery-generator">
+    <!-- Seletor de Jogo -->
+    <div class="game-selector">
+      <label for="game">Escolha o jogo:</label>
+      <select v-model="selectedGame" id="game">
+        <option value="megasena">Mega-Sena</option>
+        <option value="lotofacil">Lotofácil</option>
+        <option value="quina">Quina</option>
+      </select>
     </div>
 
-    <!-- Card Principal -->
-    <FwbCard class="mb-6">
-      <template #header>
-        <h2 class="text-xl font-semibold text-gray-900">Configuração do Jogo</h2>
-      </template>
-
-      <div class="space-y-6">
-        <!-- Seletor de Jogo -->
-        <div>
-          <FwbLabel for="game" value="Escolha o jogo:" class="mb-2" />
-          <FwbSelect 
-            v-model="selectedGame" 
-            id="game"
-            :options="gameOptions"
-            class="w-full"
-          />
-        </div>
-
-        <!-- Quantidade de Jogos -->
-        <div>
-          <FwbLabel for="quantity" value="Quantidade de jogos:" class="mb-2" />
-          <FwbInput
-            v-model.number="quantity"
-            type="number"
-            id="quantity"
-            min="1"
-            max="10"
-            placeholder="Digite a quantidade"
-            class="w-full"
-          />
-          <p class="text-sm text-gray-500 mt-1">Máximo 10 jogos por vez</p>
-        </div>
-
-        <!-- Números para Excluir -->
-        <div>
-          <FwbLabel for="exclude" value="Números para excluir (opcional):" class="mb-2" />
-          <FwbInput
-            v-model="excludeInput"
-            type="text"
-            id="exclude"
-            placeholder="Ex: 1, 7, 13, 25"
-            class="w-full"
-          />
-          <p class="text-sm text-gray-500 mt-1">Separe os números por vírgula</p>
-        </div>
-
-        <!-- Botão de Geração -->
-        <div class="text-center">
-          <FwbButton
-            @click="handleGenerate"
-            :disabled="loading || !canGenerate"
-            color="blue"
-            size="lg"
-            class="w-full sm:w-auto"
-          >
-            <FwbSpinner v-if="loading" class="mr-2" size="4" />
-            {{ loading ? 'Gerando...' : 'Gerar Jogos' }}
-          </FwbButton>
-        </div>
-      </div>
-    </FwbCard>
-
-    <!-- Estatísticas da Sessão -->
-    <FwbAlert v-if="sessionStats" type="info" class="mb-6">
-      <template #icon>
-        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
-        </svg>
-      </template>
-      <div>
-        <span class="font-semibold">Sessão Atual:</span>
-        {{ sessionStats.generated_today }} jogos gerados hoje | 
-        {{ sessionStats.remaining }} restantes
-      </div>
-    </FwbAlert>
-
-    <!-- Erro -->
-    <FwbAlert v-if="error" type="danger" @dismiss="error = null" class="mb-6">
-      <template #icon>
-        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
-        </svg>
-      </template>
-      {{ error }}
-    </FwbAlert>
-
-    <!-- Jogos Gerados -->
-    <div v-if="generatedGames[selectedGame]?.length" class="space-y-4">
-      <h3 class="text-2xl font-bold text-gray-900 text-center mb-6">
-        🎯 Jogos Gerados - {{ getGameName(selectedGame) }}
-      </h3>
-      
-      <div class="grid gap-4">
-        <FwbCard 
-          v-for="(game, index) in generatedGames[selectedGame]" 
-          :key="index"
-          class="game-card"
-        >
-          <div class="flex items-center justify-between mb-4">
-            <h4 class="text-lg font-semibold text-gray-900">Jogo {{ index + 1 }}</h4>
-            <FwbButton color="green" size="sm" @click="copyGame(game)">
-              📋 Copiar
-            </FwbButton>
-          </div>
-          
-          <div class="flex flex-wrap gap-2 justify-center">
-            <span 
-              v-for="number in game" 
-              :key="number"
-              class="lottery-ball animate-bounce-number"
-              :style="{ animationDelay: `${game.indexOf(number) * 0.1}s` }"
-            >
-              {{ number.toString().padStart(2, '0') }}
-            </span>
-          </div>
-        </FwbCard>
-      </div>
-
-      <!-- Botão para Gerar Mais -->
-      <div class="text-center mt-6">
-        <FwbButton
-          @click="handleGenerate"
-          :disabled="loading || sessionStats?.remaining <= 0"
-          color="purple"
-          outline
-        >
-          🎲 Gerar Mais Jogos
-        </FwbButton>
-      </div>
-    </div>
-  </div>
-</template>
-
-<script setup lang="ts">
-import { ref, computed } from 'vue'
-import { 
-  FwbCard, 
-  FwbButton, 
-  FwbInput, 
-  FwbLabel, 
-  FwbSelect, 
-  FwbAlert, 
-  FwbSpinner 
-} from 'flowbite-vue'
-import { useLottery } from '@/composables/useLottery'
-
-const {
-  loading,
-  error,
-  sessionStats,
-  generatedGames,
-  generateGames
-} = useLottery()
-
-const selectedGame = ref('megasena')
-const quantity = ref(1)
-const excludeInput = ref('')
-
-const gameOptions = [
-  { value: 'megasena', name: 'Mega-Sena (6 números)' },
-  { value: 'lotofacil', name: 'Lotofácil (15 números)' },
-  { value: 'quina', name: 'Quina (5 números)' }
-]
-
-const excludeNumbers = computed(() => {
-  if (!excludeInput.value) return []
-  return excludeInput.value
-    .split(',')
-    .map(n => parseInt(n.trim()))
-    .filter(n => !isNaN(n))
-})
-
-const canGenerate = computed(() => {
-  return quantity.value >= 1 && quantity.value <= 10
-})
-
-const getGameName = (slug: string) => {
-  const game = gameOptions.find(g => g.value === slug)
-  return game?.name || slug
-}
-
-const handleGenerate = async () => {
-  try {
-    await generateGames(selectedGame.value, {
-      quantity: quantity.value,
-      excludeNumbers: excludeNumbers.value
-    })
-  } catch (err) {
-    console.error('Erro ao gerar jogos:', err)
-  }
-}
-
-const copyGame = async (game: number[]) => {
-  const gameText = game.map(n => n.toString().padStart(2, '0')).join(' - ')
-  try {
-    await navigator.clipboard.writeText(gameText)
-    // Adicionar toast de sucesso aqui
-    console.log('Jogo copiado:', gameText)
-  } catch (err) {
-    console.error('Erro ao copiar:', err)
-  }
-}
-</script>
-
-<style scoped>
-.game-card {
-  @apply transition-transform duration-200 hover:scale-[1.02] hover:shadow-lg;
-}
-
-.lottery-ball {
-  @apply w-12 h-12 rounded-full bg-lottery-primary text-white font-bold text-lg flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-110;
-}
-
-/* Cores específicas por jogo */
-.game-megasena .lottery-ball {
-  @apply bg-blue-600;
-}
-
-.game-lotofacil .lottery-ball {
-  @apply bg-green-600;
-}
-
-.game-quina .lottery-ball {
-  @apply bg-purple-600;
-}
-</style>
-``` 
+    <!-- Configuração -->
+    <div class="config">
+      <label for="quantity">Quantidade de jogos:</label>
+      <input 
+        v-model.number="quantity" 
+        type="number" 
+        id="quantity" 
         min="1" 
         max="10"
       >
@@ -568,7 +368,7 @@ const copyGame = async (game: number[]) => {
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useLottery } from '@/composables/useLottery'
 
@@ -711,7 +511,7 @@ O backend já suporta estas URLs do Vue.js:
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import LotteryGenerator from '@/components/LotteryGenerator.vue'
 </script>
 ```
@@ -728,11 +528,11 @@ Lembre-se dos limites de requisição:
 
 O backend retorna erros estruturados que podem ser facilmente tratados no Vue.js:
 
-```javascript
+```typescript
 // Exemplo de tratamento de erro de rate limiting
 try {
-  await generateGames('megasena', { quantity: 5 })
-} catch (error) {
+  await generateGames('megasena', { quantity: 5, excludeNumbers: [] })
+} catch (error: any) {
   if (error.response?.status === 429) {
     alert('Muitas tentativas. Aguarde um momento.')
   } else {
