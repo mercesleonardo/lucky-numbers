@@ -29,7 +29,7 @@ class GameGeneratorController extends Controller
 
         // Valida a requisição
         $validator = Validator::make($request->all(), [
-            'count' => 'integer|min:1|max:20',
+            'count' => 'integer|min:1|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -42,14 +42,14 @@ class GameGeneratorController extends Controller
         $count      = $request->get('count', 1);
         $sessionKey = $this->getSessionKey($request);
 
-        // Verifica limite de 20 jogos por sessão
+        // Verifica limite de 100 jogos por sessão
         $gamesGenerated = $this->getSessionGameCount($sessionKey);
 
-        if ($gamesGenerated + $count > 20) {
-            $remaining = 20 - $gamesGenerated;
+        if ($gamesGenerated + $count > 100) {
+            $remaining = 100 - $gamesGenerated;
 
             return response()->json([
-                'error'           => 'Limite de 20 jogos por sessão excedido',
+                'error'           => 'Limite de 100 jogos por sessão excedido',
                 'generated_today' => $gamesGenerated,
                 'remaining'       => $remaining,
                 'max_allowed'     => $remaining > 0 ? $remaining : 0,
@@ -72,7 +72,7 @@ class GameGeneratorController extends Controller
                 'count'         => $count,
                 'session_stats' => [
                     'generated_today' => $newTotal,
-                    'remaining'       => 20 - $newTotal,
+                    'remaining'       => 100 - $newTotal,
                 ],
                 'config' => $this->gameGeneratorService->getGameConfig($gameSlug),
             ]);
@@ -104,11 +104,11 @@ class GameGeneratorController extends Controller
 
         return response()->json([
             'supported_games' => $games,
-            'daily_limit'     => 20,
+            'daily_limit'     => 100,
             'rules'           => [
                 'smart_generation' => 'Evita números premiados recentemente',
                 'max_overlap'      => '40% máximo de sobreposição com números recentes',
-                'session_limit'    => '20 jogos por IP/sessão por dia',
+                'session_limit'    => '100 jogos por IP/sessão por dia',
             ],
         ]);
     }
@@ -123,8 +123,8 @@ class GameGeneratorController extends Controller
 
         return response()->json([
             'generated_today' => $gamesGenerated,
-            'remaining'       => 20 - $gamesGenerated,
-            'daily_limit'     => 20,
+            'remaining'       => 100 - $gamesGenerated,
+            'daily_limit'     => 100,
             'reset_time'      => 'Meia-noite (00:00)',
         ]);
     }

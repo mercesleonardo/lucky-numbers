@@ -24,7 +24,7 @@ class ContestController extends Controller
             ], 404);
         }
 
-        $contest = Contest::where('lottery_game_id', $game->id)
+        $contest = Contest::with('prizes')->where('lottery_game_id', $game->id)
             ->orderBy('draw_number', 'desc')
             ->first();
 
@@ -43,7 +43,13 @@ class ContestController extends Controller
                 'draw_number' => $contest->draw_number,
                 'draw_date'   => $contest->draw_date,
                 'location'    => $contest->location,
-                'numbers'     => $contest->numbers, // Laravel já faz o cast automático para array
+                'numbers'     => $contest->numbers,
+                'prizes'      => $contest->prizes->map(fn ($prize) => [
+                    'tier'         => $prize->tier,
+                    'description'  => $prize->description,
+                    'winners'      => $prize->winners,
+                    'prize_amount' => $prize->prize_amount,
+                ]),
             ],
         ]);
     }
@@ -57,10 +63,10 @@ class ContestController extends Controller
         $results = [];
 
         foreach ($games as $game) {
-            $contest = Contest::where('lottery_game_id', $game->id)
-                ->orderBy('draw_number', 'desc')
-                ->first();
-
+                    $contest = Contest::with('prizes')
+                        ->where('lottery_game_id', $game->id)
+                        ->orderBy('draw_number', 'desc')
+                        ->first();
             if ($contest) {
                 $results[] = [
                     'game' => [
@@ -71,7 +77,13 @@ class ContestController extends Controller
                         'draw_number' => $contest->draw_number,
                         'draw_date'   => $contest->draw_date,
                         'location'    => $contest->location,
-                        'numbers'     => $contest->numbers, // Laravel já faz o cast automático para array
+                        'numbers'     => $contest->numbers,
+                        'prizes'      => $contest->prizes->map(fn ($prize) => [
+                            'tier'         => $prize->tier,
+                            'description'  => $prize->description,
+                            'winners'      => $prize->winners,
+                            'prize_amount' => $prize->prize_amount,
+                        ]),
                     ],
                 ];
             }
@@ -121,7 +133,8 @@ class ContestController extends Controller
         }
 
         // Busca por concursos com esses números exatos
-        $contests = Contest::where('lottery_game_id', $game->id)
+        $contests = Contest::with('prizes')
+            ->where('lottery_game_id', $game->id)
             ->get()
             ->filter(function ($contest) use ($userNumbers) {
                 $contestNumbers = collect($contest->numbers)->map(fn ($n) => (int) $n)->sort()->values()->toArray();
@@ -140,6 +153,12 @@ class ContestController extends Controller
                         'draw_date'   => $contest->draw_date,
                         'location'    => $contest->location,
                         'numbers'     => $contest->numbers,
+                        'prizes'      => $contest->prizes->map(fn ($prize) => [
+                            'tier'         => $prize->tier,
+                            'description'  => $prize->description,
+                            'winners'      => $prize->winners,
+                            'prize_amount' => $prize->prize_amount,
+                        ]),
                     ];
                 })->values(),
                 'total_wins' => $contests->count(),
